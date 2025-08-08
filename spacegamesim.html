@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Planet Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle, #0a0e2a 0%, #000000 100%);
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+
+        .ui-controls {
+            position: absolute;
+            top: 50%;
+            left: 1rem;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            z-index: 10;
+        }
+
+        .ui-controls button {
+            /* Futuristic button design - semi-transparent */
+            background: rgba(76, 93, 148, 0.5); /* Semi-transparent background */
+            color: #d1d5db; /* Tailwind's gray-300 */
+            padding: 0.2rem 0.6rem;
+            font-size: 0.625rem; /* text-2xs, even smaller */
+            border-radius: 0.5rem;
+            border: 2px solid rgba(107, 114, 128, 0.8); /* Semi-transparent border */
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out, background-color 0.15s ease-in-out;
+        }
+
+        .ui-controls button:hover {
+            transform: translateX(2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+            background: rgba(92, 108, 158, 0.8);
+        }
+
+        .ui-controls button:active {
+            transform: translateX(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            background: rgba(60, 74, 113, 0.8);
+        }
+
+        /* Styling for disabled buttons */
+        .ui-controls button:disabled {
+            background: rgba(46, 56, 80, 0.3); /* Darker, less transparent */
+            color: #6b7280; /* Gray out text */
+            border-color: rgba(75, 85, 99, 0.6);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Menu Modal Styling */
+        .menu-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: #e5e7eb; /* Tailwind's gray-200 */
+        }
+
+        .menu-content {
+            background: linear-gradient(145deg, #1c2842, #0d1222);
+            padding: 2rem;
+            border-radius: 1rem;
+            border: 2px solid #6b7280;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            max-width: 80%;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .menu-content h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .menu-content p {
+            font-size: 1rem;
+            max-width: 400px;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .menu-buttons button {
+            background: linear-gradient(145deg, #4c5d94, #2c3a59);
+            color: #fff;
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out, background-color 0.15s ease-in-out;
+        }
+
+        .menu-buttons button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+        }
+        
+        .fun-fact-container {
+            min-height: 5rem;
+            max-height: 15rem;
+            overflow-y: auto;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            border: 1px solid rgba(107, 114, 128, 0.5);
+            color: #e5e7eb;
+            font-size: 0.875rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UI Controls -->
+    <div class="ui-controls hidden">
+        <button id="reset-camera-btn">Reset Camera</button>
+        <button id="unfocus-btn" class="hidden">Unfocus</button>
+        <button id="speed-up-btn">Speed Up</button>
+        <button id="slow-down-btn">Slow Down</button>
+        <button id="add-planet-btn">Add Random Planet</button>
+        <button id="zoom-in-btn">Zoom In</button>
+        <button id="zoom-out-btn">Zoom Out</button>
+    </div>
+
+    <!-- Main Menu Modal -->
+    <div id="main-menu-modal" class="menu-modal">
+        <div class="menu-content">
+            <h2 class="text-2xl font-bold">Planet Simulation</h2>
+            <p class="text-sm">Explore the solar system in 3D!</p>
+            <div class="menu-buttons">
+                <button id="start-simulation-btn">Simulate</button>
+                <button id="open-settings-btn">Settings</button>
+                <button id="open-fun-btn">FUN</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Menu Modal -->
+    <div id="settings-menu-modal" class="menu-modal hidden">
+        <div class="menu-content">
+            <h2>Settings</h2>
+            <p>Customize your simulation experience.</p>
+            <div class="menu-buttons">
+                <button id="toggle-randomizer-btn">Toggle Randomizer: <span id="randomizer-state">Off</span></button>
+                <button id="random-events-btn">Random Events</button>
+            </div>
+            <button id="back-to-main-menu-btn" class="mt-4 bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200">Back to Menu</button>
+        </div>
+    </div>
+
+    <!-- FUN Menu Modal -->
+    <div id="fun-menu-modal" class="menu-modal hidden">
+        <div class="menu-content">
+            <h2>Fun Facts</h2>
+            <div id="fun-fact-container" class="fun-fact-container">
+                <p>Press 'Generate Fun Fact' to learn something new about space!</p>
+            </div>
+            <div class="menu-buttons">
+                <button id="generate-fun-fact-btn">✨ Generate Fun Fact</button>
+                <button id="read-aloud-btn">Read Aloud</button>
+            </div>
+            <button id="back-to-main-menu-btn-2" class="mt-4 bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full transition-colors duration-200">Back to Menu</button>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            // --- SCENE SETUP ---
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            // --- RAYCASTER ---
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            // --- LIGHTING ---
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            scene.add(ambientLight);
+            const sunLight = new THREE.PointLight(0xffffff, 10, 1000);
+            scene.add(sunLight);
+
+            // --- STARFIELD ---
+            const starsGeometry = new THREE.BufferGeometry();
+            const starCount = 5000;
+            const positions = [];
+            for (let i = 0; i < starCount; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                positions.push(x, y, z);
+            }
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const starsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
+            const starfield = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(starfield);
+
+            // --- PLANET DATA ---
+            const planetData = [
+                { name: 'Sun', size: 5, color: 0xffff00, orbitRadius: 0, orbitSpeed: 0, rotationSpeed: 0.005, isSun: true },
+                { name: 'Earth', size: 0.8, color: 0x00aaff, orbitRadius: 10, orbitSpeed: 0.005, rotationSpeed: 0.01, textureColors: [0x00aaff, 0x0066ff, 0x55cc00] },
+                { name: 'Mars', size: 0.6, color: 0xff4500, orbitRadius: 15, orbitSpeed: 0.003, rotationSpeed: 0.015, textureColors: [0xff4500, 0x8b4513, 0xffd700] },
+                { name: 'Jupiter', size: 2.5, color: 0xffa500, orbitRadius: 25, orbitSpeed: 0.001, rotationSpeed: 0.008, textureColors: [0xffa500, 0x8b4513, 0xd2b48c] },
+                { name: 'Saturn', size: 1.8, color: 0xe0c18d, orbitRadius: 35, orbitSpeed: 0.0008, rotationSpeed: 0.009, hasRing: true, textureColors: [0xe0c18d, 0x8b4513, 0x663300] }
+            ];
+
+            // --- TEXTURE GENERATION ---
+            function generateProceduralTexture(colors) {
+                const size = 128;
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const context = canvas.getContext('2d');
+
+                // Fill with the base color
+                context.fillStyle = `#${colors[0].toString(16).padStart(6, '0')}`;
+                context.fillRect(0, 0, size, size);
+
+                // Add some random noise/clouds
+                for (let i = 0; i < size * 5; i++) {
+                    const x = Math.random() * size;
+                    const y = Math.random() * size;
+                    const radius = Math.random() * size / 5;
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    context.beginPath();
+                    context.arc(x, y, radius, 0, 2 * Math.PI, false);
+                    context.fillStyle = `#${color.toString(16).padStart(6, '0')}44`; // '44' adds transparency
+                    context.fill();
+                }
+
+                return new THREE.CanvasTexture(canvas);
+            }
+
+            // --- SUN SHADER MATERIALS ---
+            const sunVertexShader = `
+                varying vec3 vNormal;
+                void main() {
+                    vNormal = normal;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+
+            const sunFragmentShader = `
+                uniform float time;
+                varying vec3 vNormal;
+                
+                float perlin(vec3 p) {
+                    vec3 i = floor(p);
+                    vec3 f = fract(p);
+                    f = f*f*(3.0-2.0*f);
+                    vec2 uv = (i.xy + vec2(37.0, 17.0) * i.z) + f.xy;
+                    float k = dot(sin(uv * 123.456 + vec2(1.234, 5.678)), vec2(789.123, 456.789));
+                    return sin(k * 123.456) * 0.5 + 0.5;
+                }
+
+                void main() {
+                    vec3 color1 = vec3(1.0, 0.5, 0.0); // Orange
+                    vec3 color2 = vec3(1.0, 0.8, 0.0); // Yellow
+                    vec3 color3 = vec3(1.0, 0.2, 0.0); // Red
+                    
+                    float n1 = perlin(vNormal * 10.0 + vec3(time, time, time));
+                    float n2 = perlin(vNormal * 5.0 + vec3(time * 0.5, time * 0.5, time * 0.5));
+                    
+                    vec3 baseColor = mix(color1, color2, n1);
+                    baseColor = mix(baseColor, color3, n2);
+                    
+                    float sunspotNoise = perlin(vNormal * 15.0 - vec3(time * 0.2, time * 0.2, time * 0.2));
+                    
+                    vec3 finalColor = mix(baseColor, vec3(0.1, 0.0, 0.0), smoothstep(0.7, 1.0, sunspotNoise));
+                    
+                    gl_FragColor = vec4(finalColor, 1.0);
+                }
+            `;
+
+            const coronaVertexShader = `
+                varying vec3 vNormal;
+                void main() {
+                    vNormal = normal;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+
+            const coronaFragmentShader = `
+                varying vec3 vNormal;
+                void main() {
+                    float intensity = pow(1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+                    gl_FragColor = vec4(1.0, 0.8, 0.5, intensity);
+                }
+            `;
+
+            // --- PLANET CREATION ---
+            const planetGroup = new THREE.Group();
+            scene.add(planetGroup);
+            let planets = [];
+            let orbitLines = [];
+            let sun;
+            let sunCorona;
+            let currentPlanetIndex = 0;
+            let useTextures = true;
+            let orbitsVisible = true;
+            
+            // State for focused camera
+            let focusedPlanet = null;
+            const initialCameraPosition = new THREE.Vector3(0, 0, 50);
+
+            const createPlanet = (data) => {
+                const geometry = new THREE.SphereGeometry(data.size, 32, 32);
+                let material;
+
+                if (data.isSun) {
+                    const sunMaterial = new THREE.ShaderMaterial({
+                        uniforms: {
+                            time: { value: 0.0 }
+                        },
+                        vertexShader: sunVertexShader,
+                        fragmentShader: sunFragmentShader
+                    });
+                    const sunMesh = new THREE.Mesh(geometry, sunMaterial);
+                    sun = sunMesh;
+                    sun.position.set(data.orbitRadius, 0, 0);
+                    // Add userData to the sun's mesh for raycasting
+                    sun.userData.isSun = true;
+                    sun.userData.name = data.name;
+                    scene.add(sun);
+                    
+                    const coronaGeometry = new THREE.SphereGeometry(data.size * 1.2, 32, 32);
+                    const coronaMaterial = new THREE.ShaderMaterial({
+                        uniforms: {
+                            time: { value: 0.0 }
+                        },
+                        vertexShader: coronaVertexShader,
+                        fragmentShader: coronaFragmentShader,
+                        transparent: true,
+                        blending: THREE.AdditiveBlending,
+                        side: THREE.BackSide
+                    });
+                    sunCorona = new THREE.Mesh(coronaGeometry, coronaMaterial);
+                    sun.add(sunCorona);
+                    sunLight.position.copy(sun.position);
+
+                } else {
+                    const planetContainer = new THREE.Group();
+                    
+                    const texturedMaterial = new THREE.MeshStandardMaterial({ 
+                        map: generateProceduralTexture(data.textureColors),
+                        roughness: 0.8,
+                        metalness: 0.2
+                    });
+                    const solidMaterial = new THREE.MeshStandardMaterial({ color: data.color });
+                    
+                    material = useTextures ? texturedMaterial : solidMaterial;
+
+                    const planet = new THREE.Mesh(geometry, material);
+                    planet.userData.texturedMaterial = texturedMaterial;
+                    planet.userData.solidMaterial = solidMaterial;
+                    
+                    planetContainer.add(planet);
+
+                    if (data.hasRing) {
+                        const ringGeometry = new THREE.TorusGeometry(data.size + 0.5, 0.2, 2, 50);
+                        const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x999999, side: THREE.DoubleSide });
+                        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                        ring.rotation.x = Math.PI / 2;
+                        planetContainer.add(ring);
+                    }
+
+                    planetContainer.position.x = data.orbitRadius;
+                    planetContainer.userData = { ...data };
+                    // Add userData to the mesh itself for raycasting
+                    planet.userData.name = data.name; 
+                    planet.userData.planetContainer = planetContainer;
+                    planetGroup.add(planetContainer);
+                    planets.push(planetContainer);
+
+                    const points = [];
+                    const numSegments = 200;
+                    const radius = data.orbitRadius;
+                    for (let i = 0; i <= numSegments; i++) {
+                        const angle = (i / numSegments) * Math.PI * 2;
+                        const x = Math.cos(angle) * radius;
+                        const z = Math.sin(angle) * radius;
+                        points.push(new THREE.Vector3(x, 0, z));
+                    }
+                    const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const orbitMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
+                    const orbitLine = new THREE.LineLoop(orbitGeometry, orbitMaterial);
+                    scene.add(orbitLine);
+                    orbitLines.push(orbitLine);
+                }
+            };
+
+            planetData.forEach(createPlanet);
+
+            // --- CAMERA SETUP ---
+            camera.position.z = 50;
+
+            // --- ANIMATION LOOP ---
+            let orbitSpeedFactor = 1;
+            const animate = () => {
+                requestAnimationFrame(animate);
+
+                // --- ALWAYS UPDATE PLANET POSITIONS ---
+                // This ensures time continues even when a planet is focused
+                if (sun && sun.material) {
+                    sun.material.uniforms.time.value = Date.now() / 1000;
+                }
+
+                if (sun) {
+                    sun.rotation.y += planetData.find(p => p.name === 'Sun').rotationSpeed;
+                }
+
+                planets.forEach(planetContainer => {
+                    const { orbitRadius, orbitSpeed, rotationSpeed } = planetContainer.userData;
+                    const time = Date.now() * orbitSpeed * orbitSpeedFactor;
+                    planetContainer.position.x = Math.cos(time) * orbitRadius;
+                    planetContainer.position.z = Math.sin(time) * orbitRadius;
+                    
+                    const planetMesh = planetContainer.children[0];
+                    if (planetMesh) {
+                        planetMesh.rotation.y += rotationSpeed;
+                    }
+                });
+
+                // --- CAMERA MOVEMENT LOGIC ---
+                if (focusedPlanet) {
+                    const targetPosition = focusedPlanet.position.clone();
+                    
+                    // Set a desired camera position relative to the focused object
+                    let desiredCameraPosition;
+                    if (focusedPlanet.userData.isSun) {
+                        // For the sun, we can use a fixed zoom
+                        desiredCameraPosition = new THREE.Vector3(
+                           targetPosition.x,
+                           targetPosition.y + 10,
+                           targetPosition.z + 10 
+                        );
+                    } else {
+                        // For planets, position the camera relative to its size
+                        const planetRadius = focusedPlanet.children[0].geometry.parameters.radius;
+                        desiredCameraPosition = new THREE.Vector3(
+                            targetPosition.x,
+                            targetPosition.y + planetRadius * 2,
+                            targetPosition.z + planetRadius * 4
+                        );
+                    }
+                    
+                    // Smoothly interpolate the camera position
+                    camera.position.lerp(desiredCameraPosition, 0.05);
+                    camera.lookAt(targetPosition);
+
+                } else {
+                    // Otherwise, handle manual rotation and regular camera position
+                    camera.lookAt(0, 0, 0);
+                }
+                
+                renderer.render(scene, camera);
+            };
+
+            animate();
+
+            // --- EVENT LISTENERS FOR USER INTERACTION ---
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            const rotationSpeed = 0.005;
+
+            const onMouseMove = (e) => {
+                if (!isDragging || focusedPlanet) return;
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                planetGroup.rotation.y += deltaX * rotationSpeed;
+                planetGroup.rotation.x += deltaY * rotationSpeed;
+                previousMousePosition.x = e.clientX;
+                previousMousePosition.y = e.clientY;
+            };
+
+            const onMouseDown = (e) => {
+                if(focusedPlanet) return;
+                isDragging = true;
+                previousMousePosition.x = e.clientX;
+                previousMousePosition.y = e.clientY;
+            };
+
+            const onMouseUp = () => {
+                isDragging = false;
+            };
+
+            renderer.domElement.addEventListener('mousedown', onMouseDown);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('mouseup', onMouseUp);
+
+            renderer.domElement.addEventListener('touchstart', (e) => {
+                if(focusedPlanet) return;
+                isDragging = true;
+                previousMousePosition.x = e.touches[0].clientX;
+                previousMousePosition.y = e.touches[0].clientY;
+            }, { passive: false });
+
+            renderer.domElement.addEventListener('touchmove', (e) => {
+                if (!isDragging || focusedPlanet) return;
+                const deltaX = e.touches[0].clientX - previousMousePosition.x;
+                const deltaY = e.touches[0].clientY - previousMousePosition.y;
+                planetGroup.rotation.y += deltaX * rotationSpeed;
+                planetGroup.rotation.x += deltaY * rotationSpeed;
+                previousMousePosition.x = e.touches[0].clientX;
+                previousMousePosition.y = e.touches[0].clientY;
+            }, { passive: false });
+
+            renderer.domElement.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
+            renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+            
+            // --- UI CONTROLS ---
+            const uiControls = document.querySelector('.ui-controls');
+            const mainMenuModal = document.getElementById('main-menu-modal');
+            const settingsMenuModal = document.getElementById('settings-menu-modal');
+            const funMenuModal = document.getElementById('fun-menu-modal');
+            
+            const startSimulationBtn = document.getElementById('start-simulation-btn');
+            const openSettingsBtn = document.getElementById('open-settings-btn');
+            const openFunBtn = document.getElementById('open-fun-btn');
+            const backToMainMenuBtn = document.getElementById('back-to-main-menu-btn');
+            const backToMainMenuBtn2 = document.getElementById('back-to-main-menu-btn-2');
+            
+            const unfocusBtn = document.getElementById('unfocus-btn');
+            
+            // Randomizer controls
+            const toggleRandomizerBtn = document.getElementById('toggle-randomizer-btn');
+            const randomizerStateSpan = document.getElementById('randomizer-state');
+            const addPlanetBtn = document.getElementById('add-planet-btn');
+            let randomizerEnabled = false; // Initial state is off
+            
+            toggleRandomizerBtn.addEventListener('click', () => {
+                randomizerEnabled = !randomizerEnabled;
+                randomizerStateSpan.textContent = randomizerEnabled ? 'On' : 'Off';
+                addPlanetBtn.disabled = !randomizerEnabled;
+            });
+
+            // Show simulation and hide menu
+            startSimulationBtn.addEventListener('click', () => {
+                mainMenuModal.classList.add('hidden');
+                uiControls.classList.remove('hidden');
+            });
+
+            // Show settings and hide main menu
+            openSettingsBtn.addEventListener('click', () => {
+                mainMenuModal.classList.add('hidden');
+                settingsMenuModal.classList.remove('hidden');
+            });
+
+            // Show fun menu and hide main menu
+            openFunBtn.addEventListener('click', () => {
+                mainMenuModal.classList.add('hidden');
+                funMenuModal.classList.remove('hidden');
+            });
+
+            // Return from settings to main menu
+            backToMainMenuBtn.addEventListener('click', () => {
+                settingsMenuModal.classList.add('hidden');
+                mainMenuModal.classList.remove('hidden');
+            });
+            
+            // Return from fun menu to main menu
+            backToMainMenuBtn2.addEventListener('click', () => {
+                funMenuModal.classList.add('hidden');
+                mainMenuModal.classList.remove('hidden');
+            });
+            
+            // Reset Camera button
+            document.getElementById('reset-camera-btn').addEventListener('click', () => {
+                camera.position.z = 50;
+                camera.position.x = 0;
+                camera.position.y = 0;
+                planetGroup.rotation.set(0, 0, 0);
+                focusedPlanet = null; // Unfocus
+                unfocusBtn.classList.add('hidden');
+            });
+            
+            // Unfocus button
+            unfocusBtn.addEventListener('click', () => {
+                focusedPlanet = null;
+                unfocusBtn.classList.add('hidden');
+                camera.position.copy(initialCameraPosition);
+            });
+
+            // Speed controls
+            document.getElementById('speed-up-btn').addEventListener('click', () => {
+                orbitSpeedFactor += 0.2;
+            });
+
+            document.getElementById('slow-down-btn').addEventListener('click', () => {
+                orbitSpeedFactor = Math.max(0.2, orbitSpeedFactor - 0.2);
+            });
+            
+            // Add random planet
+            document.getElementById('add-planet-btn').addEventListener('click', () => {
+                const newRadius = 40 + Math.random() * 20;
+                const newSpeed = 0.0005 + Math.random() * 0.0005;
+                const newSize = 0.5 + Math.random() * 1.5;
+                const newTextureColors = [
+                    Math.random() * 0xffffff,
+                    Math.random() * 0xffffff,
+                    Math.random() * 0xffffff,
+                ];
+                const newPlanetData = {
+                    name: `New Planet ${currentPlanetIndex++}`,
+                    size: newSize,
+                    color: newTextureColors[0],
+                    orbitRadius: newRadius,
+                    orbitSpeed: newSpeed,
+                    rotationSpeed: 0.01 + Math.random() * 0.01,
+                    hasRing: Math.random() > 0.5,
+                    textureColors: newTextureColors
+                };
+                createPlanet(newPlanetData);
+            });
+            
+            // Zoom controls
+            const zoomSpeed = 5;
+            document.getElementById('zoom-in-btn').addEventListener('click', () => {
+                camera.position.z = Math.max(10, camera.position.z - zoomSpeed);
+            });
+
+            document.getElementById('zoom-out-btn').addEventListener('click', () => {
+                camera.position.z += zoomSpeed;
+            });
+            
+            // --- RANDOM EVENTS LOGIC ---
+            function explodePlanet(planet) {
+                // Create a particle explosion effect
+                const particleCount = 200;
+                const particlesGeometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(particleCount * 3);
+                for (let i = 0; i < particleCount * 3; i += 3) {
+                    const radius = planet.children[0].geometry.parameters.radius;
+                    positions[i] = (Math.random() - 0.5) * radius * 2;
+                    positions[i + 1] = (Math.random() - 0.5) * radius * 2;
+                    positions[i + 2] = (Math.random() - 0.5) * radius * 2;
+                }
+                particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const particlesMaterial = new THREE.PointsMaterial({
+                    color: 0xffa500,
+                    size: 0.2,
+                    transparent: true,
+                    opacity: 1
+                });
+                const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+                particles.position.copy(planet.position);
+                scene.add(particles);
+
+                // Animate the particles
+                const particleAnimation = setInterval(() => {
+                    particles.material.opacity -= 0.02;
+                    particles.scale.multiplyScalar(1.05);
+
+                    if (particles.material.opacity <= 0) {
+                        clearInterval(particleAnimation);
+                        scene.remove(particles);
+                    }
+                }, 50);
+
+                // Remove the planet from the scene
+                planetGroup.remove(planet);
+                const planetIndex = planets.indexOf(planet);
+                if (planetIndex > -1) {
+                    planets.splice(planetIndex, 1);
+                }
+            }
+
+            function triggerRandomEvent() {
+                // Cannot trigger events if there are no planets to affect
+                if (planets.length === 0) return;
+
+                // Select a random planet (excluding the sun which isn't in the 'planets' array)
+                const randomIndex = Math.floor(Math.random() * planets.length);
+                const targetPlanet = planets[randomIndex];
+                
+                // Select a random event
+                const eventType = Math.floor(Math.random() * 3);
+
+                switch (eventType) {
+                    case 0:
+                        // Explode the planet
+                        explodePlanet(targetPlanet);
+                        break;
+                    case 1:
+                        // Change orbit speed
+                        targetPlanet.userData.orbitSpeed = (Math.random() * 0.01) + 0.001; // New random speed
+                        break;
+                    case 2:
+                        // Change color
+                        const newColor = Math.random() * 0xffffff;
+                        const planetMesh = targetPlanet.children[0];
+                        if (planetMesh && planetMesh.material.userData && planetMesh.material.userData.solidMaterial) {
+                            planetMesh.material.color.set(newColor);
+                        } else if (planetMesh) {
+                            planetMesh.material.color.set(newColor);
+                        }
+                        break;
+                }
+            }
+            
+            document.getElementById('random-events-btn').addEventListener('click', triggerRandomEvent);
+
+            // Toggle main menu visibility with 'm' key
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'm' || event.key === 'M') {
+                    if (settingsMenuModal.classList.contains('hidden') && funMenuModal.classList.contains('hidden')) {
+                        mainMenuModal.classList.toggle('hidden');
+                        uiControls.classList.toggle('hidden');
+                    }
+                }
+            });
+
+            // --- CLICK EVENT FOR FOCUSING ON A PLANET ---
+            renderer.domElement.addEventListener('click', (e) => {
+                // If a planet is already focused, do nothing
+                if (focusedPlanet) return;
+                
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+
+                // Combine all clickable objects (sun and all planet meshes)
+                const clickableObjects = [sun, ...planets.map(p => p.children[0])];
+                const intersects = raycaster.intersectObjects(clickableObjects);
+
+                if (intersects.length > 0) {
+                    const intersectedObject = intersects[0].object;
+                    
+                    if (intersectedObject.userData.isSun) {
+                        focusedPlanet = intersectedObject;
+                    } else {
+                        focusedPlanet = intersectedObject.userData.planetContainer;
+                    }
+                    
+                    unfocusBtn.classList.remove('hidden');
+                    
+                    console.log(`Focused on: ${intersectedObject.userData.name}`);
+                }
+            });
+            
+            // --- GEMINI API INTEGRATIONS ---
+            const funFactContainer = document.getElementById('fun-fact-container');
+            const generateFunFactBtn = document.getElementById('generate-fun-fact-btn');
+            const readAloudBtn = document.getElementById('read-aloud-btn');
+            let currentFunFact = "";
+
+            // Helper function for exponential backoff
+            const withExponentialBackoff = async (func, ...args) => {
+                let delay = 1000;
+                const maxRetries = 5;
+                for (let i = 0; i < maxRetries; i++) {
+                    try {
+                        return await func(...args);
+                    } catch (error) {
+                        if (i < maxRetries - 1) {
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            delay *= 2;
+                        } else {
+                            throw error;
+                        }
+                    }
+                }
+            };
+            
+            // Function to generate a fun fact using the Gemini LLM API
+            const generateFunFact = async () => {
+                const nonSunPlanets = planetData.filter(p => !p.isSun);
+                const randomPlanet = nonSunPlanets[Math.floor(Math.random() * nonSunPlanets.length)];
+                const prompt = `Give me a single, fascinating, and lesser-known fun fact about the planet ${randomPlanet.name}. Start the fact with "Did you know..."`;
+
+                funFactContainer.textContent = "Generating a fun fact...";
+                generateFunFactBtn.disabled = true;
+                readAloudBtn.disabled = true;
+
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }] }]
+                };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await withExponentialBackoff(fetch, apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts) {
+                        currentFunFact = result.candidates[0].content.parts[0].text;
+                        funFactContainer.textContent = currentFunFact;
+                    } else {
+                        funFactContainer.textContent = "Oops! Couldn't generate a fact. Please try again.";
+                    }
+                } catch (error) {
+                    console.error("Error calling Gemini LLM API:", error);
+                    funFactContainer.textContent = "Failed to fetch a fun fact. Check your connection and try again.";
+                } finally {
+                    generateFunFactBtn.disabled = false;
+                    readAloudBtn.disabled = false;
+                }
+            };
+            
+            generateFunFactBtn.addEventListener('click', generateFunFact);
+            
+            // Helper functions for TTS audio conversion
+            const base64ToArrayBuffer = (base64) => {
+                const binaryString = window.atob(base64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            };
+
+            const pcmToWav = (pcmData, sampleRate) => {
+                const numChannels = 1;
+                const bitDepth = 16;
+                const dataLength = pcmData.length * 2;
+                const buffer = new ArrayBuffer(44 + dataLength);
+                const view = new DataView(buffer);
+
+                writeString(view, 0, 'RIFF');
+                view.setUint32(4, 36 + dataLength, true);
+                writeString(view, 8, 'WAVE');
+                writeString(view, 12, 'fmt ');
+                view.setUint32(16, 16, true);
+                view.setUint16(20, 1, true);
+                view.setUint16(22, numChannels, true);
+                view.setUint32(24, sampleRate, true);
+                view.setUint32(28, sampleRate * numChannels * (bitDepth / 8), true);
+                view.setUint16(32, numChannels * (bitDepth / 8), true);
+                view.setUint16(34, bitDepth, true);
+                writeString(view, 36, 'data');
+                view.setUint32(40, dataLength, true);
+
+                let offset = 44;
+                for (let i = 0; i < pcmData.length; i++) {
+                    view.setInt16(offset, pcmData[i], true);
+                    offset += 2;
+                }
+
+                return new Blob([view], { type: 'audio/wav' });
+            };
+
+            const writeString = (view, offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+            
+            const readAloud = async () => {
+                if (!currentFunFact) {
+                    funFactContainer.textContent = "Please generate a fun fact first!";
+                    return;
+                }
+
+                readAloudBtn.disabled = true;
+                const originalText = funFactContainer.textContent;
+                funFactContainer.textContent = "Generating audio...";
+
+                const payload = {
+                    contents: [{
+                        parts: [{ text: currentFunFact }]
+                    }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: { voiceName: "Rasalgethi" }
+                            }
+                        }
+                    },
+                    model: "gemini-2.5-flash-preview-tts"
+                };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await withExponentialBackoff(fetch, apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                        const sampleRate = parseInt(mimeType.match(/rate=(\d+)/)[1], 10);
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        const pcm16 = new Int16Array(pcmData);
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        
+                        const audio = new Audio(audioUrl);
+                        
+                        funFactContainer.textContent = "Playing...";
+                        
+                        audio.play();
+                        audio.onended = () => {
+                            URL.revokeObjectURL(audioUrl);
+                            funFactContainer.textContent = originalText;
+                            readAloudBtn.disabled = false;
+                        };
+                    } else {
+                        throw new Error("Invalid audio response from API.");
+                    }
+                } catch (error) {
+                    console.error("Error calling Gemini TTS API:", error);
+                    funFactContainer.textContent = "Failed to play audio. Please try again.";
+                } finally {
+                    if (funFactContainer.textContent !== "Playing...") {
+                       funFactContainer.textContent = originalText;
+                       readAloudBtn.disabled = false;
+                    }
+                }
+            };
+
+            readAloudBtn.addEventListener('click', readAloud);
+
+            // --- WINDOW RESIZING ---
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        };
+    </script>
+</body>
+</html>
